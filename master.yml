@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Master template for the Data microservice
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  S3Bucket:
+    Type: String
+    Description: The location of the S3 repository
+  S3Prefix:
+    Type: String
+    Description: The location of the S3 repository
+Resources:
+  DataTable:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join [/, [https://s3.amazonaws.com, !Ref S3Bucket, !Ref S3Prefix, dataTable.yml]]   
+  DataApi:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: <LOCATION>dataApi.yml
+Outputs:   
+  DataUri:
+    Description: The URI of the data endpoint
+    Value: !GetAtt DataApi.Outputs.DataUri
+    Export:
+      Name: !Sub "DataUri-${Stage}"

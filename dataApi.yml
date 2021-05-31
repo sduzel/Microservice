@@ -1,0 +1,400 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: The CloudFormation for the Data API Gateway and Lambda functions
+Transform: AWS::Serverless-2016-10-31
+Outputs:
+  DataUri:
+    Description: The URI of the Data endpoint
+    Value: !Sub "https://${dataApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+Resources:
+  DataMsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      # ManagedPolicyArns: []
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - "arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonSSMFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonKinesisFullAccess"
+        - "arn:aws:iam::aws:policy/AWSIoTFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonSESFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+      Policies:
+        - PolicyName: AssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: "Allow"
+              Action:
+                - "sts:AssumeRole"
+              Resource: 
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+      RoleName: !Sub DataMsRole-${Stage}
+  dataSQS:
+    Type: AWS::SQS::Queue
+    Properties: 
+      FifoQueue: true
+      QueueName: !Sub "Data.fifo"
+      ContentBasedDeduplication: true
+  postData:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub postData
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/postData
+      Description: 'The definition for the postData Lambda function'
+      MemorySize: 128
+      Timeout: 60
+      Role: !GetAtt DataMsRole.Arn
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path:  '/data'
+            Method: POST
+            RestApiId: !Ref dataApi
+      Environment:
+        Variables:
+          TABLE_NAME: 'Data'
+          KINESIS_NAME: 'Data_Stream'
+          QUEUE_NAME: 'Data.fifo'
+          BUCKET_NAME: !Sub "Data_${AWS::AccountId}"
+  patchData:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub patchData
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/patchData
+      Description: 'The definition for the patchData Lambda function'
+      MemorySize: 128
+      Timeout: 300
+      Role: !GetAtt DataMsRole.Arn
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /data/{id}
+            Method: PATCH
+            RestApiId: !Ref dataApi
+      Environment:
+        Variables:
+          TABLE_NAME: 'Data'
+          KINESIS_NAME: 'Data_Stream'
+          QUEUE_NAME: 'Data.fifo'
+          BUCKET_NAME: !Sub "Data_${AWS::AccountId}"
+  processAsyncLambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub processAsyncLambda
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/processAsyncLambda
+      Description: 'The definition for the processAsyncLambda Lambda function'
+      MemorySize: 128
+      Timeout: 300
+      Role: !GetAtt DataMsRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: 'Data'
+          KINESIS_NAME: 'Data_Stream'
+          QUEUE_NAME: 'Data.fifo'
+          BUCKET_NAME: !Sub "Data_${AWS::AccountId}"
+  deleteData:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub deleteData
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/deleteData
+      Description: 'The definition for the deleteData Lambda function'
+      MemorySize: 128
+      Timeout: 300
+      Role: !GetAtt DataMsRole.Arn
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /data/{id}
+            Method: DELETE
+            RestApiId: !Ref dataApi
+      Environment:
+        Variables:
+          TABLE_NAME: 'Data'
+          KINESIS_NAME: 'Data_Stream'
+          QUEUE_NAME: 'Data.fifo'
+          BUCKET_NAME: !Sub "Data_${AWS::AccountId}"
+  getData:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub getData
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/getData
+      Description: 'The definition for the getData Lambda function'
+      MemorySize: 128
+      Timeout: 300
+      Role: !GetAtt DataMsRole.Arn
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /data/{id}
+            Method: GET
+            RestApiId: !Ref dataApi
+      Environment:
+        Variables:
+          TABLE_NAME: 'Data'
+          KINESIS_NAME: 'Data_Stream'
+          QUEUE_NAME: 'Data.fifo'
+          BUCKET_NAME: !Sub "Data_${AWS::AccountId}"
+  getAll:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: !Sub getAll
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/getAll
+      Description: 'The definition for the getAll Lambda function'
+      MemorySize: 128
+      Timeout: 300
+      Role: !GetAtt DataMsRole.Arn
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /data
+            Method: GET
+            RestApiId: !Ref dataApi
+      Environment:
+        Variables:
+          TABLE_NAME: 'Data'
+          KINESIS_NAME: 'Data_Stream'
+          QUEUE_NAME: 'Data.fifo'
+          BUCKET_NAME: !Sub "Data_${AWS::AccountId}"
+  dataApi: 
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Sub ${Stage}
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          version: "2018-10-02T09:56:25Z"
+          title: !Sub "Data-${Stage}"
+        schemes:
+        - "https"
+        paths:       
+          /data:
+            get:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${getAll.Arn}/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            post:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              security:
+              - sigv4: []                      
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${postData.Arn}/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"            
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /data/{id}:
+            delete:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "id"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${deleteData.Arn}/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            get:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "id"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${getData.Arn}/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            patch:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "id"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              security:
+              - sigv4: []
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${patchData.Arn}/invocations"                 
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,DELETE,PATCH,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+        securityDefinitions:
+          sigv4:
+            type: "apiKey"
+            name: "Authorization"
+            in: "header"
+            x-amazon-apigateway-authtype: "awsSigv4"
+        definitions:
+          Empty:
+            type: "object"
+            title: "Empty Schema"
+        x-amazon-apigateway-gateway-responses:
+          DEFAULT_5XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Methods: "'POST,GET,OPTIONS'"
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          DEFAULT_4XX:
+            responseParameters:
+              gatewayresponse.header.Access-Control-Allow-Methods: "'POST,GET,OPTIONS'"
+              gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+              gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      TracingEnabled: true

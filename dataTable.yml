@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: The CloudFormation for the Data table
+Parameters:
+  TblStage:
+    Type: String
+    Description: The name of the stage being deployed
+Resources: 
+  DataTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "Id"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "Id"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: !Sub Data-${TblStage}                  
